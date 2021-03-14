@@ -34,9 +34,9 @@ def main():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=100,
+        default=25,
         metavar="N",
-        help="number of epochs to train (default: 14)",
+        help="number of epochs to train (default: 25)",
     )
     parser.add_argument(
         "--lr",
@@ -46,36 +46,22 @@ def main():
         help="learning rate (default: 1.0)",
     )
     parser.add_argument(
-        "--gamma",
-        type=float,
-        default=1,
-        metavar="M",
-        help="Learning rate step gamma (default: 0.7)",
-    )
-    parser.add_argument(
         "--no-cuda", action="store_true", default=False, help="disables CUDA training"
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="quickly check a single pass",
     )
     parser.add_argument(
         "--seed", type=int, default=1, metavar="S", help="random seed (default: 1)"
     )
     parser.add_argument(
-        "--log-interval",
-        type=int,
-        default=10,
-        metavar="N",
-        help="how many batches to wait before logging training status",
-    )
-    parser.add_argument(
-        "--save-model",
+        "--save-models",
         action="store_true",
         default=False,
-        help="For Saving the current Model",
+        help="Save models after training.",
+    )
+    parser.add_argument(
+        "--load-models",
+        action="store_true",
+        default=False,
+        help="Load models instead of training them."
     )
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -94,7 +80,6 @@ def main():
     transform = transforms.Compose(
         [
             transforms.ToTensor(),
-            # transforms.Normalize((0.1307,), (0.3081,))
         ]
     )
     dataset1 = datasets.MNIST("../data", train=True, download=True, transform=transform)
@@ -103,26 +88,37 @@ def main():
     train_loader = torch.utils.data.DataLoader(dataset1, **train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
+    summary = SummaryWriter("runs/baseline")
+    nc_summary = SummaryWriter("runs/nc")
+    
 
+    # Baseline Model
     model = Net().to(device)
-    optimizer = torch.optim.Adadelta(model.parameters(), lr=1)
-
+    # Model to be trained with non-correlation loss.
     nc_model = Net().to(device)
-    nc_optimizer = torch.optim.Adadelta(nc_model.parameters(), lr=1)
 
-    summary = SummaryWriter()
+    if not args.load_models:
+        optimizer = torch.optim.Adadelta(model.parameters(), lr=args.lr)
+        nc_optimizer = torch.optim.Adadelta(nc_model.parameters(), lr=args.lr)
 
-    for epoch in range(1, 26):
-        print(f"Epoch {epoch}:")
-        print("Baseline:")
-        train(model, device, train_loader, optimizer, nc=False, log_interval=10, summary=summary, name="baseline:")
-        test(model, device, test_loader)
-        print("Non-Correlated:")
-        train(nc_model, device, train_loader, nc_optimizer, nc=True, log_interval=10, summary=summary, name="non-correlated:")
-        test(nc_model, device, test_loader)
+        for epoch in range(1, args.epochs + 1):
+            print(f"Epoch {epoch}:")
+            print("Baseline:")
+            train(model, device, train_loader, optimizer, epoch, nc=False, log_interval=10, summary=summary, name="baseline")
+            test(model, device, test_loader, summary=summary, name="baseline", epoch=epoch)
+            print("Non-Correlated:")
+            train(nc_model, device, train_loader, nc_optimizer, epoch, nc=True, log_interval=10, summary=nc_summary, name="non-correlated")
+            test(nc_model, device, test_loader, summary=nc_summary, name="non-correlated", epoch=epoch)
 
-    test_adversarial(model, device, test_loader, summary, name="baseline:")
-    test_adversarial(nc_model, device, test_loader, summary, name="non-correlated:")
+        if args.save_models:
+            torch.save(model.state_dict(), "saved_models/model.pt")
+            torch.save(nc_model.state_dict(), "saved_models/nc_model.pt")
+    else:
+        model.load_state_dict(torch.load("saved_models/model.pt"))
+        nc_model.load_state_dict(torch.load("saved_models/nc_model.pt"))
+
+    test_adversarial(model, device, test_loader, summary, name="baseline")
+    test_adversarial(nc_model, device, test_loader, nc_summary, name="non-correlated")
 
 
 
