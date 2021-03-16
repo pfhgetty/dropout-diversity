@@ -55,13 +55,12 @@ def test(model, device, test_loader, epoch=None, attack=None, summary=None, name
     with ctx_noparamgrad_and_eval(model):
         for batch_idx, (data, target) in enumerate(test_loader):
             data, target = data.to(device), target.to(device)
+            first_img = data[0]
             if attack:
                 data = attack.perturb(data, target)
-
-                # print(target[0].cpu().numpy())
-                # example = data[0]
-                # plt.imshow(example.squeeze(0).cpu().numpy(), cmap='gray')
+                # plt.imshow(example_img.squeeze(0).cpu().numpy(), cmap='gray')
                 # plt.show()
+
             output = model(data)
             test_loss += F.nll_loss(
                 output, target, reduction="sum"
@@ -70,6 +69,14 @@ def test(model, device, test_loader, epoch=None, attack=None, summary=None, name
             pred = output.argmax(
                 dim=1, keepdim=True
             )  # get the index of the max log-probability
+
+                
+            if attack and summary:
+                example_img = data[0]
+                example_label = target[0].cpu().item()
+                example_pred = pred[0].cpu().item()
+                summary.add_image(f"adversarial_image_eps{epoch:.3f}_l{example_label}_p{example_pred}", example_img, 0)
+                summary.add_image(f"adversarial_image_eps{epoch:.3f}_l{example_label}_p{example_pred}", first_img, 1)
 
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -86,22 +93,19 @@ def test(model, device, test_loader, epoch=None, attack=None, summary=None, name
         )
     )
 
-    if summary:
+    if summary and (attack is None):
         summary.add_scalar("test_loss", test_loss, epoch)
         summary.add_scalar("test_acc", acc, epoch)
 
     # Returns loss and accuracy
     return test_loss, acc
 
-def test_adversarial(model, device, test_loader, summary=None, min_eps=0.01, max_eps=0.3, num_eps=50, name=None):
+def test_adversarial(model, device, test_loader, summary=None, min_eps=0.1, max_eps=0.4, num_eps=20, name=None):
     x = np.linspace(min_eps, max_eps, num=num_eps)
     y = []
     for eps in x:
         attack = attacks.FGSM(model, loss_fn=F.nll_loss, eps=eps)
-        _, accuracy = test(model, device, test_loader, None, attack)
+        _, accuracy = test(model, device, test_loader, eps, summary=summary, attack=attack)
         y.append(accuracy)
 
-    fig = plt.figure()
-    plt.plot(x, y)
-    if summary:
-        summary.add_scalar("fgsm_acc", fig)
+    return x, y
