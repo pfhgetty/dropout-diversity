@@ -75,8 +75,8 @@ def test(model, device, test_loader, epoch=None, attack=None, summary=None, name
                 example_img = data[0]
                 example_label = target[0].cpu().item()
                 example_pred = pred[0].cpu().item()
-                summary.add_image(f"adversarial_image_eps{epoch:.3f}_l{example_label}_p{example_pred}", example_img, 0)
-                summary.add_image(f"adversarial_image_eps{epoch:.3f}_l{example_label}_p{example_pred}", first_img, 1)
+                summary.add_image(f"{name}_adversarial_image_eps{epoch:.3f}_l{example_label}_p{example_pred}", example_img, 0)
+                summary.add_image(f"{name}_adversarial_image_eps{epoch:.3f}_l{example_label}_p{example_pred}", first_img, 1)
 
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -105,7 +105,7 @@ def test_adversarial(model, device, test_loader, summary=None, min_eps=0.1, max_
     y = []
     for eps in x:
         attack = attacks.FGSM(model, loss_fn=F.nll_loss, eps=eps)
-        _, accuracy = test(model, device, test_loader, eps, summary=summary, attack=attack)
+        _, accuracy = test(model, device, test_loader, eps, summary=summary, attack=attack, name=name)
         y.append(accuracy)
 
     return x, y

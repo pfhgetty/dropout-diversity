@@ -184,7 +184,7 @@ def main():
     if args.run_adversarial:
         min_eps = 0.001
         max_eps = 0.01
-        x, y = test_adversarial(model, device, test_loader, summary, name="baseline")
+        x, y = test_adversarial(model, device, test_loader, summary, name="baseline", min_eps=min_eps, max_eps=max_eps)
         nc_x, nc_y = test_adversarial(
             nc_model,
             device,
@@ -204,7 +204,7 @@ def main():
         plt.title("Adversarial Testing " + args.dataset.upper())
         plt.grid(True)
         if summary:
-            summary.add_figure("fgsm_ac", fig)
+            summary.add_figure("fgsm_acc_adv", fig)
 
     print("Finished successfully!")
 
